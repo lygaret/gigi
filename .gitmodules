@@ -1,3 +1,6 @@
 [submodule "vendor/sdl"]
 	path = vendor/sdl
 	url = https://github.com/libsdl-org/SDL.git
+[submodule "vendor/libuv"]
+	path = vendor/libuv
+	url = https://github.com/libuv/libuv.git
