@@ -54,10 +54,11 @@ void timerTick(uv_timer_t* handle) {
 static int counter = 0;
 void uiTick(uv_async_t* handle) {
     uv_rwlock_rdlock(&ioSDLEventLock);
-    printf("something happened from the SDL thread! %d (type %d)\n", counter, ioSDLLatestEvent.type);
+    const int latestType = ioSDLLatestEvent.type;
     uv_rwlock_rdunlock(&ioSDLEventLock);
 
-    if (counter++ > 100) {
+    printf("something happened from the SDL thread! %d (type %d)\n", counter, latestType);
+    if (latestType == SDL_EVENT_QUIT || counter++ > 100) {
         ioRequestQuit();
     }
 }
@@ -105,10 +106,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 /* This function runs when a new event (mouse input, keypresses, etc) occurs. */
 SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 {
-    if (event->type == SDL_EVENT_QUIT) {
-        return SDL_APP_SUCCESS;  /* end the program, reporting success to the OS. */
-    }
-    
     ioPushSDLEvent(event);
     return SDL_APP_CONTINUE;
 }

@@ -2,12 +2,11 @@
 
 * gigi
 
-=gigi= is an experimental development environment that combines:
+=gigi= is an experimental development environment, and programming languange
 
-- A schemish language, with built-in actor model concurrency
-  - Aimed at creating small applications and tools
-- SDL-based widget and framebuffer toolkit
-- Event-driven runtime powered by libuv
+- schemish
+- object capabilities
+- pre-emptable actor model concurrency and evented io
 
 It's my own =emacs=, but worse.
 
@@ -20,8 +19,8 @@ Don't use this yet. Someday, do.
 =gigi= uses CMake as its build system.
 
 #+begin_src bash
-  git clone https://github.com/lygaret/gigi.git
-  git clone submodules update --recursive
+  git clone --recurse-submodules https://github.com/lygaret/gigi.git
+  cd gigi
   cmake -B build
   cmake --build build
 #+end_src
@@ -29,6 +28,14 @@ Don't use this yet. Someday, do.
 ** Requirements
 
 - CMake
+
+*** Vendored Libraries
+
+These libraries are awesome, gratitude to the authors!
+
+- Garbage collection powered by [[https://github.com/wingo/whippet][=Whippet=]]
+- Evented IO and Actor runtime runtime powered by [[https://docs.libuv.org/en/v1.x/][=libuv=]]
+- Windowing, framebuffer and widget toolkit powered by [[https://wiki.libsdl.org/SDL3/FrontPage][=SDL3=]]
 
 ** TODO Tasks [0/1]
 - [ ] implement literally anything
