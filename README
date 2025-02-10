@@ -1,0 +1,174 @@
+# -*- mode: org; coding: utf-8 -*-
+
+* gigi
+
+=gigi= is an experimental development environment that combines:
+
+- A schemish language, with built-in actor model concurrency
+  - Aimed at creating small applications and tools
+- SDL-based widget and framebuffer toolkit
+- Event-driven runtime powered by libuv
+
+It's my own =emacs=, but worse.
+
+** Status
+
+Don't use this yet. Someday, do.
+
+** Building
+
+=gigi= uses CMake as its build system.
+
+#+begin_src bash
+  git clone https://github.com/lygaret/gigi.git
+  git clone submodules update --recursive
+  cmake -B build
+  cmake --build build
+#+end_src
+
+** Requirements
+
+- CMake
+
+** TODO Tasks [0/1]
+- [ ] implement literally anything
+
+** License
+
+Copyright (c) 2025 Jonathan Raphaelson
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+See [[./COPYING]] for details.
+
+*** Vendored Libraries
+
+- =SDL3= is licensed under the [[https://www.libsdl.org/license.php][zlib license]]
+- =libuv= is licensed under the [[https://github.com/libuv/libuv/blob/v1.x/LICENSE][MIT License]]
+- =whiffle= is licensed under the [[https://github.com/libuv/libuv/blob/v1.x/LICENSE][MIT License]]
+
+** Reading
+
+I have read prose, read code, and re-read prose from all over, and the following people and
+projects stand out. They have all have my deepest and most sincere gratitude for writing,
+building, thinking and working in the open, where I could learn from them.
+
+As such, a reading list, in no particular order:
+
+- [[https://letoverlambda.com/][let over lambda]] by Doug Hoyte
+- [[https://github.com/carld/sassy][sassy]], an x86 assembler written in scheme; by Jonathan Kraut
+- [[https://scheme.fail/][loko scheme]], an optimizing scheme compiler with a bare-metal output; by G. Weinholt
+- [[https://larcenists.org][the larceny project]], a "simple and efficient" implementation of Scheme
+- [[erights.org]] and the [[http://wiki.erights.org/wiki/Main_Page][eright.org wiki]]
+- [[https://monte.readthedocs.io/en/latest/][the monte programming language]], a programming language inspired by the E and Python programming languages.
+- [[https://spritely.institute/static/papers/spritely-core.html][spritely goblins]], a really cool distributed objects system, pushing capabilities
+- the [[https://www.more-magic.net][blog of Peter Bex]], a core developer on [[https://www.call-cc.org/][chicken scheme]]
+  - their articles on chicken internals are great:
+  - [[https://www.more-magic.net/posts/internals-gc.html][more-magic.net: garbage collection]]
+  - [[https://www.more-magic.net/posts/internals-data-representation.html][more-magic.net: data representation]]
+- [[https://mitpress.mit.edu/9780262535519/the-reasoned-schemer/][The Reasoned Schemer]], by Daniel Friedman, et. al
+- the [[https://web.archive.org/web/20191008012407/http://home.pipeline.com/~hbaker1/home.html][archive of H. Baker]], an ACM distinguised scientist and co-founder of Symbolics;
+  - all brilliant, but my favorites so far:
+  - [[https://web.archive.org/web/20191008012410/http://home.pipeline.com/~hbaker1/LazyAlloc.html][h. baker: cons should not cons it's arguments; lazy alloc]]
+  - [[https://web.archive.org/web/20200223051632/http://home.pipeline.com/~hbaker1/CheneyMTA.html][h. baker: cons should not cons it's arguments pt 2; cheny on the mta]]
+  - [[https://web.archive.org/web/20191008050811/http://home.pipeline.com/~hbaker1/YoungGen.html][h. baker: 'infant mortality' and generational garbage collection]]
+- [[http://mumble.net/~jar/pubs/secureos/secureos.html][Jonathan A. Rees: A Security Kernel Based on the Lambda Calculus]]
+
+*** Reading Dump
+
+Also very interesting, but not yet categorized.
+
+- interesting papers re: prompt application for delimited control (manipulation of the control stack)
+  - [[https://okmij.org/ftp/continuations/index.html][most of oleg kiselyov's]] delemited continuations section
+    - this guy's website is _fascinating_
+    - also this [[http://pllab.is.ocha.ac.jp/~asai/cw2011tutorial/main-e.pdf][tutorial on shift/reset]], also by oleg kiselyov
+  - [[https://www.cs.tufts.edu/~nr/cs257/archive/matthias-felleisen/prompts.pdf][theory and practice of first-class prompts]]
+    - paper from Matthias Felleisen which is exactly what it sounds like
+    - lots of other papers seem to reference this 𝓕 term
+    #+begin_quote
+    An 𝓕-application transforms the current control state into a functional abstr&ion, which we call continuation.
+    #+end_quote
+  - [[https://www-old.cs.utah.edu/plt/publications/pldi20-fd.pdf][compiler and runtime support for compiler marks]]
+    - paper from the racket guys re: adding marks (prompts? kinda?) to racket continuations
+  - [[https://www-old.cs.utah.edu/plt/publications/icfp07-fyff.pdf][Adding Delimited and Composable Control to a Production Programming Environment]]
+    - writeup of original PLT scheme adding ~control~ and ~shift~ while not screwing up ~call/cc~ and ~dynamic-wind~
+  - [[https://legacy.cs.indiana.edu/~dyb/pubs/monadicDC.pdf][a monadic framework for delimited continuations]]
+    - kent dybvig + simon payton jones
+    - the introduction is amazing, and they introduce the set of four operators I'm going to include in the VM
+    - ~newPrompt~ prompts are first class, and distinct
+    - ~pushPrompt~ takes a prompt, and delimits the contination of it's body at that prompt
+    - ~withSubCont~
+      #+begin_quote
+      It captures a portion of the current continuation back to but not including the activation of
+      pushPrompt with prompt p, aborts the current continuation back to and including the activation
+      of pushPrompt, and invokes f, passing it an abstract value representing the captured
+      subcontinuation.
+
+      If more than one activation of pushPrompt with prompt p is still active, the most recent
+      enclosing activation, i.e., the one that delimits the smallest subcontinuation, is selected.
+      #+end_quote
+    - ~pushSubCont~
+      #+begin_quote
+      evaluates its first operand to yield a subcontinuation k, then evaluates its second operand in a continuation that
+      composes k with the current continuation.
+      #+end_quote
+    - still need to understand more the finer details around -/+F-/+, in terms of where the abort is.
+      - I have a pretty good intuition re: ~call/cc~ but that's only one particular composition of operators
+        #+begin_src prog
+            withCont e = withSubCont p0 (λk.pushPrompt p0 (e k))
+            where:
+                    p0 = the top level prompt around the whole program
+
+            callcc = λf.withCont (λk.pushSubCont k (f (reifyA k)))
+            where:
+                    reifyA k = λv.abort (pushSubCont k v)
+                    abort e  = withCont (λ .e)
+        #+end_src
+      - specifically, "abort" vs. "resume" isn't clear to me
+      - a lot is based on where prompts are placed (in the continuation chain) and where they're left after resumption
+  - [[http://metamodular.com/SICL/call-site-optimization.pdf][call-site optimization in common lisp]]
+  - [[https://lispcookbook.github.io/cl-cookbook/cl21.html#features][cl21 (unofficial proposal for cleanup of commonlisp)]]
+  - [[https://web.archive.org/web/20191008050811/http://home.pipeline.com/~hbaker1/YoungGen.html][h. baker: 'infant mortality' and generational garbage collection]]
+  - [[https://web.archive.org/web/20191008012410/http://home.pipeline.com/~hbaker1/LazyAlloc.html][h. baker: cons should not cons it's arguments; lazy alloc]]
+  - [[https://web.archive.org/web/20200223051632/http://home.pipeline.com/~hbaker1/CheneyMTA.html][h. baker: cons should not cons it's arguments pt 2; cheny on the mta]]
+  - H. Baker paper: [[https://web.archive.org/web/20180208043127/http://home.pipeline.com/~hbaker1/sigplannotices/COMFY.TXT][a comfortable set of control primitives for asm programming]]
+  - [[https://www.more-magic.net/posts/internals-gc.html][chicken internals: the garbage collector]]
+  - [[https://www.more-magic.net/posts/internals-data-representation.html][chicken internals: object representation]]
+  - [[https://www.multicians.org/lcp.html][maclisp -- the basic hackery]] (bibop collection, 100% different than chicken, referenced)
+  - [[https://www.cs.princeton.edu/~appel/papers/142.pdf][a. appel: runtime tags aren't necessary]]
+  - [[http://www.cs.tufts.edu/comp/250RTS/archive/rob-pike/impl-new-TR.pdf][implementation of newsqueak - rob pike (pdf)]]
+  - [[https://github.com/nornagon/jonesforth/blob/master/jonesforth.S][jonesforth/jonesforth.S at master · nornagon/jonesforth]]
+  - [[https://www.reddit.com/r/Forth/comments/74v6b3/bootstrapping_a_minimal_forth_from_scratch/][Bootstrapping a minimal Forth from scratch. : Forth]]
+  - [[http://www.bradrodriguez.com/papers/moving1.htm][Moving Forth: Part 1]]
+  - [[http://thinking-forth.sourceforge.net/][Thinking Forth]]
+  - [[http://www.osdever.net/tutorials/view/memory-management-1][Memory Management 1 on Bona Fide OS Developer]]
+  - [[https://github.com/AndreaOrru/zen/blob/master/kernel/vmem.zig][zen/multiboot.zig at master · AndreaOrru/zen]]
+  - [[https://github.com/sqrt57/x86-scheme][sqrt57/x86-scheme: Implementation of Scheme programming language in assembly]]
+  - [[https://github.com/ktakashi/sasm/blob/master/src/sasm/arch/x64.sls][sasm/src/sasm/arch/x64.sls at master · ktakashi/sasm]]
+  - [[https://github.com/siraben/zkeme80/blob/master/src/assembler.scm][zkeme80/src/assembler.scm at master · siraben/zkeme80]]
+  - [[http://www.willdonnelly.net/blog/2021-05-06-scheme-x86-assembler/][A Tiny x86 Assembler Written in Scheme]]
+  - [[https://blog.edfine.io/blog/2016/06/28/erlang-data-representation/][Erlang's Internal Data Representation - Detail oriented]]
+  - [[http://tumbleforth.hardcoded.net/][Tumble Forth]]
+  - [[https://www.cs.purdue.edu/homes/rompf/papers/xhebraj-ecoop22.pdf][What If We Don't Pop the Stack? The Return of 2nd-Class Values - xhebraj-ecoop22.pdf]]
+  - [[http://mumble.net/~jar/pubs/secureos/secureos.html][Emergent Technologies Inc. -- Security Kernel]]
+  - [[https://dotat.at/@/2005-10-20-mergesort-for-linked-lists.html][mergesort for linked lists – Tony Finch]]
+  - [[https://web.archive.org/web/20200223051632/http://home.pipeline.com/~hbaker1/CheneyMTA.html][Cheney on the M.T.A.]]
+  - [[https://matt.might.net/articles/cps-conversion/][How to compile with continuations]]
+  - [[https://web.archive.org/web/20200109080303/http://home.pipeline.com/~hbaker1/ObjectIdentity.html][ACM OOPS Messenger 4, 4 (Oct 1993), 2-27]]
+  - [[http://www.iro.umontreal.ca/~feeley/papers/OLearyFeeleyMOREVMS23.pdf][A Compact and Extensible Portable Scheme VM - OLearyFeeleyMOREVMS23.pdf]]
+  - [[https://sourceware.org/gdb/current/onlinedocs/gdb.html/Memory.html#Memory][Memory (Debugging with GDB)]]
+  - [[https://azeria-labs.com/memory-instructions-load-and-store-part-4/][Memory Instructions: Load and Store (Part 4) | Azeria Labs]]
+  - [[https://github.com/BaseMax/AwesomeInterpreter][BaseMax/AwesomeInterpreter: The Big list of the github, open-source interpreters.]]
+  - [[https://github.com/arkanis/lisp.c/blob/master/bytecode_interpreter.c][lisp.c/bytecode_interpreter.c at master · arkanis/lisp.c]]
+  - [[https://github.com/rm-hull/byok][rm-hull/byok: A bare-metal x86 Forth interpreter & compiler]]
+  - [[http://metamodular.com/SICL/call-site-optimization.pdf][Call-site optimization for Common Lisp - call-site-optimization.pdf]]
+  - [[https://github.com/egallesio/STklos/blob/master/src/vm.c][STklos/src/vm.c at master · egallesio/STklos]]
+  - [[https://www.microsoft.com/en-us/research/publication/what-about-the-integer-numbers-fast-arithmetic-with-tagged-integers-a-plea-for-hardware-support/][What About the Integer Numbers? Fast Arithmetic with Tagged Integers - A Plea for Hardware Support - Microsoft Research]]
+  - [[https://www.sparkfun.com/products/14643?src=raspberrypi][Raspberry Pi 3 B+ - DEV-14643 - SparkFun Electronics]]
+  - [[https://www.gnu.org/software/guile/manual/html_node/Bitwise-Operations.html][Bitwise Operations (Guile Reference Manual)]]
+  - [[https://github.com/s-matyukevich/raspberry-pi-os/tree/master/src/lesson01/src][raspberry-pi-os/src/lesson01/src at master · s-matyukevich/raspberry-pi-os]]
+  - [[https://stackoverflow.com/questions/2770889/how-can-i-examine-the-stack-frame-with-gdb][How can I examine the stack frame with GDB? - Stack Overflow]]
+  - [[https://kagi.com/search?q=fast+bytecode+number+representations][fast bytecode number representations - Kagi Search]]
