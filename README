@@ -48,7 +48,7 @@ See [[./COPYING]] for details.
 
 - =SDL3= is licensed under the [[https://www.libsdl.org/license.php][zlib license]]
 - =libuv= is licensed under the [[https://github.com/libuv/libuv/blob/v1.x/LICENSE][MIT License]]
-- =whiffle= is licensed under the [[https://github.com/libuv/libuv/blob/v1.x/LICENSE][MIT License]]
+- =whippet= is licensed under the [[https://github.com/wingo/whippet][MIT License]]
 
 ** Reading
 
