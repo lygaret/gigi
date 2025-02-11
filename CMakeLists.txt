@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(gigi)
 
 set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # set the output directory for built objects
 # make sure the dynamic library goes into the build directory
