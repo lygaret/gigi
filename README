@@ -37,9 +37,6 @@ These libraries are awesome, gratitude to the authors!
 - Evented IO and Actor runtime runtime powered by [[https://docs.libuv.org/en/v1.x/][=libuv=]]
 - Windowing, framebuffer and widget toolkit powered by [[https://wiki.libsdl.org/SDL3/FrontPage][=SDL3=]]
 
-** TODO Tasks [0/1]
-- [ ] implement literally anything
-
 ** License
 
 Copyright (c) 2025 Jonathan Raphaelson
@@ -57,7 +54,9 @@ See [[./COPYING]] for details.
 - =libuv= is licensed under the [[https://github.com/libuv/libuv/blob/v1.x/LICENSE][MIT License]]
 - =whippet= is licensed under the [[https://github.com/wingo/whippet][MIT License]]
 
-** Reading
+** Devlog
+
+*** Reading
 
 I have read prose, read code, and re-read prose from all over, and the following people and
 projects stand out. They have all have my deepest and most sincere gratitude for writing,
@@ -179,3 +178,24 @@ Also very interesting, but not yet categorized.
   - [[https://github.com/s-matyukevich/raspberry-pi-os/tree/master/src/lesson01/src][raspberry-pi-os/src/lesson01/src at master · s-matyukevich/raspberry-pi-os]]
   - [[https://stackoverflow.com/questions/2770889/how-can-i-examine-the-stack-frame-with-gdb][How can I examine the stack frame with GDB? - Stack Overflow]]
   - [[https://kagi.com/search?q=fast+bytecode+number+representations][fast bytecode number representations - Kagi Search]]
+
+*** <2025-02-16 Sun>
+
+rough outline of a plan
+
+- compiler
+  - reads a file into s-expr
+  - s-expr -> module graph
+    - imports/exports
+    - local definitions
+      - s-expr
+      - bytecode
+    macro expansion phasing comes into play here, not sure how yet
+  - local definitions compiled to bytecode
+    - macro expansion
+    - cps transform
+    - optimizations
+      - beta reduction
+      - constants and simple math
+      - others ???
+    - ??? -> bytecode

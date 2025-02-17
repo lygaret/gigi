@@ -10,7 +10,7 @@ static value_t install_op(context_p ctxt, value_t env, char *name, native_proc_f
 
 static value_t debugprint_proc(context_p ctxt, value_t args, value_t env) {
   value_t v = eval(ctxt, cons_car(ctxt, args), &env);
-  printf("[%lx] => ", v.as_uint64);
+  printf("[%llx] => ", v.as_uint64);
   print(ctxt, v);
   printf("\n");
 
