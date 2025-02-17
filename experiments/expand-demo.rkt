@@ -6,7 +6,7 @@
 (require "expand.rkt")
 
 (define (expand-expression e)
-  (expand (introduce (datum->syntax e))))
+  (expand (namespace-syntax-introduce (datum->syntax e))))
 
 (define (compile+eval-expression e)
   (define c (compile (expand-expression e)))
@@ -46,15 +46,20 @@
    `(lambda (x)
       (let-syntax ([y (lambda (stx) (quote-syntax '7))])
         (y))))
+
+  (compile+eval-expression
+   `(lambda (x y z)
+      (let-syntax ([y (lambda (stx) (quote-syntax z))])
+        (y))))
   
   (compile+eval-expression
    (add-let
     '(let ([z '0])
        (let-syntax ([m (lambda (stx) (car (cdr stx)))])
-         (let ([x '5])
-           (let ([y (lambda (z) z)])
-             (let ([z '10])
-               (list z (y x) (m '10)))))))))
+         (let ([x '5]
+               [y (lambda (z) z)])
+           (let ([z '10])
+             (list z (y x) (m '10))))))))
   
   "non capturing"
   (eval-expression
@@ -77,4 +82,15 @@
                                             (quote-syntax 'x-2)))
                                 (car (cdr stx)))))])
          (let ([x 'x-3])
-           (m x)))))))
+           (m x))))))
+  
+  "non-transformer binding misuse"
+  (with-handlers ([exn:fail? (lambda (exn)
+                               (unless (regexp-match? #rx"illegal use of syntax"
+                                                      (exn-message exn))
+                                 (error "wrong error"))
+                               'illegal-use)])
+    (expand (namespace-syntax-introduce
+             (datum->syntax '(let-syntax ([v 1])
+                               v))))
+    (error "shouldn't get here")))

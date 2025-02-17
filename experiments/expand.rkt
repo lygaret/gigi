@@ -37,7 +37,25 @@
 
 (module+ test
   (check-equal? (identifier? (syntax 'x (seteq))) #t))
-      
+
+;;;; if identifiers are `bound-identifier=?` they are fully interchangable
+(define (bound-identifier=? a b)
+  (and (syntax? a) (syntax? b)
+       (eq? (syntax-e a) (syntax-e b))
+       (equal? (syntax-scopes a) (syntax-scopes b))))
+
+(define (matched-identifier=? a b)
+  (and (syntax? a) (syntax? b)
+       (eq? (syntax-e a) (syntax-e b))
+       (subset? (syntax-scopes a) (syntax-scopes b))))
+
+(module+ test
+  (check-equal? (bound-identifier=? (syntax 'a (seteq)) (syntax 'a (seteq))) #t)
+  (check-equal? (bound-identifier=? (syntax 'a (seteq)) (syntax 'b (seteq))) #f)
+  (check-equal? (bound-identifier=? (syntax 'a (seteq)) (syntax 'a (seteq (scope)))) #f)
+  (check-equal? (matched-identifier=? (syntax 'a (seteq)) (syntax 'b (seteq))) #f)
+  (check-equal? (matched-identifier=? (syntax 'a (seteq)) (syntax 'a (seteq (scope)))) #t))
+
 ;;;; datum->syntax coerces to syntax with empty scope
 (define (datum->syntax v)
   (cond
@@ -45,7 +63,7 @@
     [(symbol? v) (syntax v (seteq))]
     [(list? v)   (map datum->syntax v)]
     [else v]))
-                
+
 ;;;; syntax->datum recursively discards scopes
 (define (syntax->datum s)
   (cond
@@ -75,7 +93,7 @@
 (module+ test
   (define sc1 (scope))
   (define sc2 (scope))
-  
+
   (check-equal? (eq? sc1 sc2) #f)
   (check-equal? (eq? sc1 sc1) #t))
 
@@ -93,10 +111,10 @@
 (module+ test
   (check-equal? (add-scope sc1 (datum->syntax 'x))
                 (syntax 'x (seteq sc1)))
-  
+
   (check-equal? (xor-scope sc1 (add-scope sc1 (datum->syntax 'x)))
                 (syntax 'x (seteq)))
-  
+
   (check-equal? (add-scope sc1 (datum->syntax '(x (y))))
                 (list (syntax 'x (seteq sc1))
                       (list (syntax 'y (seteq sc1)))))
@@ -174,8 +192,7 @@
 ;;;; find all candidate bindings for id (those with subset of scopes)
 (define (find-all-matching-bindings id)
   (for/list ([c-id (in-hash-keys all-bindings)]
-             #:when (and (eq? (syntax-e c-id) (syntax-e id))
-                         (subset? (syntax-scopes c-id) (syntax-scopes id))))
+             #:when (matched-identifier=? c-id id))
     c-id))
 
 (module+ test
@@ -207,28 +224,35 @@
   (check-exn (make-exn:fail? "ambiguous")
              (lambda ()
                (check-unambiguous (syntax 'c (seteq sc2))
-                                  (syntax 'c (seteq sc1))
-                                  (syntax 'c (seteq sc2))))))
+                                  (list (syntax 'c (seteq sc1))
+                                        (syntax 'c (seteq sc2)))))))
+
+(define (free-identifier=? a b)
+  (eq? (resolve a) (resolve b)))
+
+(module+ test
+  (check-equal? (free-identifier=? (syntax 'a (seteq sc1)) (syntax 'a (seteq sc1 sc2))) #t)
+  (check-equal? (free-identifier=? (syntax 'b (seteq sc1)) (syntax 'b (seteq sc1 sc2))) #f))
 
 ;; core syntax and prims
 
 ;;;; accumulate core bindings in core-scope
 (define core-scope (scope))
-(define core-forms (seteq 'lambda 'let-syntax 'quote 'quote-syntax))
+(define core-forms (seteq 'lambda 'let-syntax '#%app 'quote 'quote-syntax))
 (define core-prims (seteq 'datum->syntax 'syntax->datum 'syntax-e 'list 'cons 'car 'cdr 'map))
 (for ([sym (in-set (set-union core-forms core-prims))])
   (add-binding! (syntax sym (seteq core-scope)) sym))
 
 ;;;; adds the core scope to a syntax object
-(define (introduce s)
+(define (namespace-syntax-introduce s)
   (add-scope core-scope s))
 
 (module+ test
-  (check-equal? (introduce (datum->syntax 'lambda))
+  (check-equal? (namespace-syntax-introduce (datum->syntax 'lambda))
                 (syntax 'lambda (seteq core-scope)))
   
   (check-equal? (resolve (datum->syntax 'lambda)) #f)
-  (check-equal? (resolve (introduce (datum->syntax 'lambda))) 'lambda))
+  (check-equal? (resolve (namespace-syntax-introduce (datum->syntax 'lambda))) 'lambda))
 
 ;; compile time environment
 
@@ -237,12 +261,17 @@
 
 (define empty-env (hasheq))
 (define variable (gensym 'variable))
+(define missing (gensym 'missing))
 
 (define (env-extend env key val)
   (hash-set env key val))
 
 (define (env-lookup env binding)
-  (hash-ref env binding #f))
+  (hash-ref env binding missing))
+
+(module+ test
+  (check-equal? (env-lookup empty-env loc/a) missing)
+  (check-equal? (env-lookup (env-extend empty-env loc/a 'val) loc/a) 'val))
 
 ;;;; helper for registering a local binding in the set of scopes
 (define (add-local-binding! id)
@@ -251,15 +280,84 @@
   key)
 
 (module+ test
-  (check-equal? (env-lookup empty-env loc/a) #f)
+  (check-equal? (env-lookup empty-env loc/a) missing)
   
-  (let ([new-env (env-extend empty-env loc/a variable)])
-    (check-equal? (env-lookup new-env loc/a) variable))
+  (let ([new-env (env-extend empty-env loc/a 'value)])
+    (check-equal? (env-lookup new-env loc/a) 'value))
   
   (define loc/d (add-local-binding! (syntax 'd (seteq sc1 sc2))))
   (check-equal? (resolve (syntax 'd (seteq sc1 sc2))) loc/d))
 
 ;; expansion dispatch
+
+(module+ test
+  ;; a number expands to a `quote` form:
+  (check-equal? (expand (datum->syntax 1) empty-env)
+                (list (syntax 'quote (seteq core-scope))
+                      1))
+
+  ;; binding and using a macr
+  (check-equal? (syntax->datum
+                 (expand (namespace-syntax-introduce (datum->syntax
+                                                      '(let-syntax ([one (lambda (stx)
+                                                                           (quote-syntax '1))])
+                                                         (one))))))
+                '(quote 1))
+
+  ;; lambda expands to itself, so long as it has the core scope
+  (check-equal? (syntax->datum
+                 (expand
+                  (namespace-syntax-introduce (datum->syntax '(lambda (x) x)))))
+                '(lambda (x) x))
+
+  ;; a reference to a core prim expands to itself
+  (check-equal? (expand (syntax 'cons (seteq core-scope)) empty-env)
+                (syntax 'cons (seteq core-scope)))
+
+  ;; a locally bound variable expands to itself
+  (check-equal? (expand (syntax 'a (seteq sc1)) ; bound to loc/a above
+                        (env-extend empty-env loc/a variable))
+                (syntax 'a (seteq sc1)))
+
+  ;; a free variable triggers an error
+  (check-exn (make-exn:fail? "free variable")
+             (lambda ()
+               (expand (syntax 'a (seteq)) empty-env)))
+
+  ;; application of a locally-bound variable to a number expands to an #%app form
+  (check-equal? (expand (list (syntax 'a (seteq sc1)) 1)
+                        (env-extend empty-env loc/a variable))
+                (list (syntax '#%app (seteq core-scope))
+                      (syntax 'a (seteq sc1))
+                      (list (syntax 'quote (seteq core-scope))
+                            1)))
+
+  ;; application of a locally bound variable to a number quotes
+  (check-equal? (expand (list (syntax 'a (seteq sc1))
+                              (list (syntax 'quote (seteq core-scope)) 1))
+                        (env-extend empty-env loc/a variable))
+                (list (syntax '#%app (seteq core-scope))
+                      (syntax 'a (seteq sc1))
+                      (list (syntax 'quote (seteq core-scope)) 1)))
+
+  ;; application of a number to a number expands to an application
+  (check-equal? (expand (namespace-syntax-introduce (datum->syntax '('0 '1))) empty-env)
+                (list (syntax '#%app (seteq core-scope))
+                      (list (syntax 'quote (seteq core-scope))
+                            0)
+                      (list (syntax 'quote (seteq core-scope))
+                            1)))
+
+  ;; locally bound macro expands by application
+  (check-equal? (syntax->datum
+                 (expand (syntax 'a (seteq sc1))
+                         (env-extend empty-env loc/a (lambda (s) (datum->syntax 1)))))
+                '(quote 1))
+  (check-equal? (syntax->datum
+                 (expand (let ([s (datum->syntax '(a (lambda (x) x)))])
+                           (add-scope core-scope (add-scope sc1 s)))
+                         (env-extend empty-env loc/a (lambda (s) (list-ref s 1)))))
+                '(lambda (x) x)))
 
 (define (expand s [env empty-env])
   (cond
@@ -270,7 +368,9 @@
     [(or (pair? s) (null? s))
      (expand-application s env)]
     [else
-     (error "bad syntax:" s)]))
+     ;; anything else is implicitly quoted, so build a quote form
+     (list (syntax 'quote (seteq core-scope))
+           s)]))
 
 (define (expand-identifier s env)
   (define binding (resolve s))
@@ -282,8 +382,9 @@
      (define v (env-lookup env binding))
      (cond
        [(eq? v variable) s]
-       [(not v) (error "out of context" s)]
-       [else    (error "bad syntax" s)])]))
+       [(eq? v missing) (error "out of context" s)]
+       [(procedure? v)  (expand (apply-transformer v s) env)]
+       [else (error "illegal use of syntax" s)])]))
 
 (define (expand-identifier-application s env)
   (define binding (resolve (car s)))
@@ -292,6 +393,9 @@
     [(let-syntax)   (expand-let-syntax s env)]
     [(quote)        s]
     [(quote-syntax) s]
+    [(#%app)
+     (match-define (list _ es ...) s)
+     (expand-application es env)]
     [else
      (define v (env-lookup env binding))
      (cond
@@ -313,7 +417,7 @@
                                (syntax 'x (seteq))))
                        (list (syntax 'm (seteq))
                              (syntax 'f (seteq sc1)))))
-  
+
   (check-equal? (syntax->datum transformed-s) '(f x))
   (check-equal? (list-ref transformed-s 0) (syntax 'f (seteq sc1)))
   (check-equal? (set-count (syntax-scopes (list-ref transformed-s 1))) 1))
@@ -321,25 +425,32 @@
 ;;;;
 
 (define (expand-lambda s env)
-  (match-define `(,lambda-id (,arg-id) ,body) s)
+  (match-define `(,lambda-id (,arg-ids ...) ,body) s)
   (define sc (scope))
-  (define id (add-scope sc arg-id))
-  (define binding (add-local-binding! id))
-  (define body-env (env-extend env binding variable))
+  (define ids (map (curry add-scope sc) arg-ids))
+  (define bindings (map add-local-binding! ids))
+  (define body-env (foldl (lambda (binding env)
+                            (env-extend env binding variable))
+                          env bindings))
   (define exp-body (expand (add-scope sc body) body-env))
-  (list lambda-id (list id) exp-body))
+  (list lambda-id ids exp-body))
 
 (define (expand-let-syntax s env)
-  (match-define `(,let-syntax-id ([,lhs-id ,rhs]) ,body) s)
+  (match-define `(,let-syntax-id ([,trans-ids ,trans-rhss] ...) ,body) s)
   (define sc (scope))
-  (define id (add-scope sc lhs-id))
-  (define binding (add-local-binding! id))
-  (define rhs-val (eval-for-syntax-binding rhs))
-  (define body-env (env-extend env binding rhs-val))
+  (define ids (map (curry add-scope sc) trans-ids))
+  (define bindings (map add-local-binding! ids))
+  (define trans-vals (map eval-for-syntax-binding trans-rhss))
+  (define body-env (foldl (lambda (binding val env)
+                            (env-extend env binding val))
+                          env bindings trans-vals))
   (expand (add-scope sc body) body-env))
 
 (define (expand-application s env)
-  (map (curryr expand env) s))
+  (match-define `(,rator ,rands ...) s)
+  (list* (syntax '#%app (seteq core-scope))
+         (expand rator env)
+         (map (curryr expand env) rands)))
 
 ;;;; expand and eval `rhs` as a compile time expression
 (define (eval-for-syntax-binding rhs)
@@ -347,22 +458,24 @@
 
 (module+ test
   (check-equal? (eval-for-syntax-binding
-                 (introduce (datum->syntax '(car (list '1 '2)))))
+                 (namespace-syntax-introduce (datum->syntax '(car (list '1 '2)))))
                 1)
   (check-equal? ((eval-for-syntax-binding
-                  (introduce (datum->syntax '(lambda (x) (syntax-e x)))))
+                  (namespace-syntax-introduce (datum->syntax '(lambda (x) (syntax-e x)))))
                  (syntax 'y (seteq)))
                 'y))
 
 (define (compile s)
   (cond
     [(pair? s)
-     (define core-sym (and (identifier? (car s))
-                           (resolve (car s))))
+     (define core-sym (resolve (car s)))
      (case core-sym
        [(lambda)
-        (match-define `(,lambda-id (,id) ,body) s)
-        `(lambda (,(resolve id)) ,(compile body))]
+        (match-define `(,lambda-id (,ids ...) ,body) s)
+        `(lambda ,(map resolve ids) ,(compile body))]
+       [(#%app)
+        (match-define `(,app-id ,rator ,rands ...) s)
+        (cons (compile rator) (map compile rands))]
        [(quote)
         (match-define `(,quote-id ,datum) s)
         `(quote ,(syntax->datum datum))]
@@ -370,7 +483,7 @@
         (match-define `(,quote-syntax-id ,datum) s)
         `(quote ,datum)]
        [else
-        (map compile s)])]
+        (error "unrecognized core form" s)])]
     [(identifier? s)
      (resolve s)]
     [else
@@ -387,59 +500,3 @@
 
 (define (eval-compiled s)
   (eval s namespace))
-
-(module+ test
-  ;; binding and using a macr
-  (check-equal? (syntax->datum
-                 (expand (introduce (datum->syntax
-                                     '(let-syntax ([one (lambda (stx)
-                                                          (quote-syntax '1))])
-                                        (one))))))
-                '(quote 1))
-  
-  ;; lambda expands to itself, so long as it has the core scope
-  (check-equal? (syntax->datum
-                 (expand
-                  (introduce (datum->syntax '(lambda (x) x)))))
-                '(lambda (x) x))
-  
-  ;; a reference to a core prim expands to itself
-  (check-equal? (expand (syntax 'cons (seteq core-scope)))
-                (syntax 'cons (seteq core-scope)))
-  
-  ;; a locally bound variable expands to itself
-  (check-equal? (expand (syntax 'a (seteq sc1)) ; bound to loc/a above
-                        (env-extend empty-env loc/a variable))
-                (syntax 'a (seteq sc1)))
-  
-  ;; a free variable triggers an error
-  (check-exn (make-exn:fail? "free variable")
-             (lambda ()
-               (expand (syntax 'a (seteq)) empty-env)))
-  
-  ;; application of a locally bound variable to a number quotes
-  (check-equal? (expand (list (syntax 'a (seteq sc1))
-                              (list (syntax 'quote (seteq core-scope)) 1))
-                        (env-extend empty-env loc/a variable))
-                (list (syntax 'a (seteq sc1))
-                      (list (syntax 'quote (seteq core-scope)) 1)))
-  
-  ;; application of a number to a number expands to an application
-  (check-equal? (expand (introduce (datum->syntax '('0 '1))) empty-env)
-                (list (list (syntax 'quote (seteq core-scope))
-                            0)
-                      (list (syntax 'quote (seteq core-scope))
-                            1)))
-  
-  ;; locally bound macro expands by application
-  (check-equal? (syntax->datum
-                 (expand (list (syntax 'a (seteq sc1)))
-                         (env-extend empty-env loc/a (lambda (s)
-                                                       (list (syntax 'quote (seteq core-scope))
-                                                             1)))))
-                '(quote 1))
-  (check-equal? (syntax->datum
-                 (expand (let ([s (datum->syntax '(a (lambda (x) x)))])
-                           (add-scope core-scope (add-scope sc1 s)))
-                         (env-extend empty-env loc/a (lambda (s) (list-ref s 1)))))
-                '(lambda (x) x)))
