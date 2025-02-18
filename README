@@ -275,6 +275,7 @@ going through the =demi= branch
         - missing is an error "id used out of context"
     - otherwise is an error "unknown binding for lookup"
 
+      ; a namespace is the actual set of scopes we're running in
   - namespace
     - scope ; for top level bindings
     - phases ; phase-level -> definitions
@@ -282,11 +283,14 @@ going through the =demi= branch
     - subdecls ; resolved-module-name -> module
     - instances ; (cons resolved-module-name phase) -> namespace
 
+      ; ???
   - definitions
     - variables ; sym -> val
     - transformers ; sym -> val
     - instantiated?
 
+      ; a module is a map of bindings by phase
+      ; we instantiate a module _into_ a namespace
   - module
     - name
     - requires ; phase -> list of resolved module names
@@ -295,4 +299,157 @@ going through the =demi= branch
     - max-phase-level
     - instantiate ; namespace phase phase-level ->
 
-    - current-namespace is a parameter (dynamic scoping with `parameterize)
+  - current-namespace is a parameter (dynamic scoping with `parameterize)
+  - make-module-namespace ns name for-submodule?
+    - makes a copy of the incoming module
+    - adds ns instances list: ((name phase=0) . copy)
+
+  - (namespace-module-instatiate! ns name phase-shift [min-phase 0])
+    - get module by (namespace->module-namespace ns name phase-shift :auto-create)
+    - for each (req-phase, req-module) in module-requires
+      - instantiate req-module in (req-phase + phase-shift)
+    - for each phase in module's phase-min...phase-max+!
+      - when phase >= min-phase
+        - unless namespace/phase definitions have been instantiated already
+          - mark defs instantiated
+          - ((module-instantiate mod) ns phase-shift phase-level)
+
+  - namespace->module-namespace ns name phase :auto-create?
+    - look up by name/phase in the namespace's module instance cache
+    - if auto-create?
+      - get module from namespace
+      - create new namespace
+        - empty multiscope
+        - copied decls and instances from ns
+      - set by name/phase in namespace's module instance cache
+
+  - expand s ctx
+    - identifier? => expand-identifier
+    - application - direct identifier in car => expand-id-application-form
+    - application - expression in car => expand-implicit #%app
+    - otherwise => expand-implicit #%datum
+
+    ; ident
+  - expand-identifier s ctx
+    - binding = (resolve s (expand-context-phase ctx))
+    - if binding
+      - variable or form with identifier macro
+        (dispatch (lookup binding ctx s) s ctx)
+    - if no binding
+      - unbound identifier => expand-implicit %#top
+
+    ; (ident formals ...)
+  - expand-id-application-form s ctx
+    - binding = (resolve (car s) (expand-context-phase ctx))
+    - if binding
+      - t = (lookup binding ctx d)
+        - if variable? t
+          ; the expression in the head is a run-time binding, so it's a normal application
+          - expand-implicit #%app
+        - otherwise
+          ; it's syntax or a core form being applied
+          - (dispatch t s ctx)
+    - if no binding
+      - ; it's possible that the #%app form might do something with unbound ids
+        - expand-implicit #%app
+
+    ; handle implicit: #%app, #%top, #%datum
+    ; does some funky stuff to ensure that these are bound in the core, but that's the #lang stuff poking through I think
+  - expand-implicit sym s ctx
+    - binding     = resolve (datum->syntax s sym) (expand-context-phase ctx)
+    - transformer = binding && (lookup binding ctx id)
+    - case transformer
+      - core-form?   => (dispatch t (datum-syntax s (cons sym s) s) ctx)
+        - with special case for "only-immediate?" returning the syntax
+      - transformer? => (dispatch t (datum-syntax s (cons sym s) s) ctx)
+      - otherwise
+        - error: no transformer binding for name
+
+    ; expand s given a binding to some compile-time value
+  - dispatch t s ctx
+    - case t
+      - core-form? => ((core-form-expander t) s ctx)
+        - with special case for "only-immediate?" returning the syntax
+      - transformer? => (expand (apply-transformer t s ctx) ctx) ; recursion!!!
+      - variable? => s ; expands to itself, because it's a runtime value
+      - otherwise
+        - error: illegal use of syntax
+
+  - apply-transformer t s ctx
+    - transform-scope = create new scope
+    - add new scope to s
+    - maybe add use-site-scope
+      - in a recursive definition context where use-site scopes are needed, create one and add
+    - transformed = (parameterize ([current-expand-context ctx])
+                      (t maybe-use-site-scope))
+    - if not syntax? transformed
+      - error "transformer must produce syntax!"
+    - xor the transform-scope
+      - now, newly introduced syntax has it, and the original syntax doesn't
+    - maybe add post-use-site-scope
+      - in a definition context where inside-edge scopes are needed, create one and add
+        - this way, if the macro expands to a definition, the binding will be in the definition context's scope
+
+  - lookup binding ctx id
+    - do a normal binding lookup, but in the current expand-context        
+
+    ; expands a sequence of body forms in a definition contxet
+  - expand-body sc s ctx
+    - outside-edge = new-scope
+      - the outside edge scope identifies the original content of the definition context
+    - inside-edge  = new-scope
+      - the inside edge scope identifes any form that appears (perhaps through expansion) in the definition context
+    - for each body
+      - add scopes (sc, outside-edge, inside-edge)
+    - phase = expand-context phase
+    - body-ctx = copy of expand-context
+      - only-immediate? = true ; we don't want to expand the whole thing, just get top-level forms
+      - post-expansion-scope = inside-edge
+      - scopes (list* ouside-sc inside-sc (expand-context-scopes ctx))
+      - use-site-scopes (box null)
+    - dups = make dupe checker
+    - loop over each body, accumulating expressions and bindings
+      - case body
+        - not null?
+          - expanded-body = (expand body body-ctx)
+          - case (core-form-sym expanded-body phase)
+            - (begin e ...)
+              - splice body forms into expressions, continue
+            - (define-values (id ...) rhs)
+              - find a variable definition, add bindings, extend env and continue
+              - for each id
+                - remove use-site-scopes
+                - check for dupes in the dupe checker
+                - add a local binding for the id to the phase
+              - splice new expressions and continue
+                - if we had accumulated expressions, we need to turn each into a
+                  (defined-values () (begin <expr> (values))) form
+                  so it can be kept with definitions to preserve order
+            - (define-syntaxes (id ...) rhs)
+              - found a macro definition; add bindings, evaluate the compile-time rhs
+                install the compile-time values in the env and continue
+              - keys = for each id
+                - remove use-site scopes
+                - check for dupes
+                - add local binding for the id to the phase
+              - vals = (eval-for-syntaxes-binding rhs ids ctx)
+              - extend the environment with key->val bindings
+              - extend the expand-context env and continue
+            - otherwise
+              - found an expression, accumulate and continue
+        - body is null?
+          - we've expanded everything at the top level, so we finish be rewriting to letrec-values
+          - if empty, no wrapper needed
+          - otherwise, add letrec-values wrapper, finish expanding the rhs and finish the body expression
+
+  - expand-transformer
+    expands s as a compile-time expression relative to the current expansion context
+
+  - expand+eval-for-syntaxes-binding rhs ids ctx)
+    - expanded-rhs = (expand rhs ctx)
+    - values (expanded-rhs (eval-for-bindings ids expanded-rhs (add1 phase) expand-context-namespace)
+    
+  - eval-for-bindings
+    - compiled = compile s ns phase
+    - expand-time-eval compiled
+           
