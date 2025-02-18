@@ -514,5 +514,34 @@ going through the =demi= branch
   - add-core-form `letrec-values ^
   - add-core-form `letrec-syntax+values ^
         
-         
-    
+  - add-core-form #%datum
+    - when the datum is keyword?
+      (error "keyword misused as an expression")
+    - rebuild as `(quote ,datum)
+      - quote is syntax at the current phase level
+
+  - add-core-form (#%app rator rand ...)
+    - rebuild as `(,app-id ,(expand rator ctx) ,(map expand rand))
+
+  - add-core-form `(quote ,datum) => datum
+  - add-core-form `(quote-syntax ,datum #:local)
+    - if not local, prune datum's scopes up to transformer boundary
+    - `(quote-syntax ,datum)
+
+  - add-core-form `(if tst thn els)
+    - rebuild `(if ,(expand tst) ,(expand thn) ,(expand els))
+
+  - add-core-form `with-continuation-mark ,key ,val ,body
+    - rebuild expanding key, val, body
+
+  - add-core-form `begin `begin0
+    - it's just map expand bodies
+
+  - add-core-form `set! id rhs
+    - binding = resolve id (expand-context-phase ctx)
+    - unless binding
+      - error "no binding for assignment"
+    - t = lookup binding ctx s
+      - unless variable? t
+        - error "cannot assign to syntax"
+      - rebuild `(set! ,id ,(expand rhs ctx))
