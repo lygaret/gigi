@@ -453,3 +453,66 @@ going through the =demi= branch
     - compiled = compile s ns phase
     - expand-time-eval compiled
            
+  - lambda-expander s formals bodys ctx
+    - sc = new scope
+    - parse and check formal arguments
+      - parse-and-flatten-formals formals sc
+      - check no dups
+    - keys = add bindings to the current expand context phase
+    - body-env = fold over those bindings, env-extending with key 'variable
+      - since they're runtime values
+    - expanded-body = expand-body sc s body-ctx
+      ; return formals with new scope and the expanded body
+    - (values (add-scope formals sc) exp-body)
+
+  - add-core-form! `(lambda ,formals ,bodys ...+) (s ctx)
+    - formals, body = lambda-expander s formals bodys ctx
+    - rebuild `(lambda ,formals ,body)
+    
+  - add-core-form! `(case-lambda [formalss bodys ...+] ...) (s ctx)
+    - for formal, body in formals, bodys
+      - formals, body = lambda-expander s formals bodys
+        - clause = rebuild clause `[,formals ,body]
+    - `(case-lambda ,@clauses)
+
+  - parse-and-flatten-formals all-formals sc
+
+  ; common expansion for `let[rec]-[syntaxes+]values
+  ; let-values - binds (values) in body
+  ; letrec-values - binds (values) in body in a mutually recursive fashion
+  ; let-syntaxes+values - binds transformers and values in body
+  ; letrec-syntaxes+values - binds transformers and values in body in a mutually recursive fashion
+    
+  - ((let-values-expander syntaxes? rec?) s ctx)
+    - `(let[rec]-syntaxes+values
+           ([(trans-id ...) trans-rhs] ...)
+           ([(val-id ...) val-rhs] ...)
+         body ...+)
+    - `(let[rec]-values
+           ([(trans-id ...) trans-rhs] ...)
+           ([(val-id ...) val-rhs] ...)
+         body ...+)
+    - scope = new scope
+    - add the new scope to each binding id
+      - map (curry add-scope sc) trans-id
+      - map (curry add-scope sc) val-id
+    - check dupes
+    - binding each left hand identifier and generate a key in the env
+      trans-keys = map add-local-binding id phase
+      val-keys = map add-local-binding id phase
+    - evaluate compile time expressions
+      trans-vals = map eval-for-syntaxes-binding (add-scope rhs sc) ids ctx
+    - build up expansion time environment
+      - rec-val-env = for each key in val-keys, extend env key -> 'variable
+      - rec-env     = for each key/value in trans and vals, extend rec-val-env with key -> val
+    - expand rhs and body
+      - new expand contxet with rec-env and new scopes
+      - letrec-values-id = if syntaxes? `let-values+phase1 else `let-values
+      - rebuild `(,letrec-values-id ,for-each val [id (if rec? (expand+sc rec-ctx) else (expand ctx))))
+
+  - add-core-form `let-values ^
+  - add-core-form `letrec-values ^
+  - add-core-form `letrec-syntax+values ^
+        
+         
+    
