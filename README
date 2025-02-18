@@ -199,3 +199,100 @@ rough outline of a plan
       - constants and simple math
       - others ???
     - ??? -> bytecode
+
+*** <2025-02-17 Mon>
+
+https://www.youtube.com/watch?v=Or_yKiI3Ha4
+https://github.com/mflatt/expander/tree/demi?tab=readme-ov-file
+
+going through the =demi= branch 
+
+- syntax object
+  - expr     (nested with syntax objects)
+  - scopeset (see video)
+  - srcloc
+  - syntax properties
+
+- scopes
+  - set of opaque tags, used to handle shadowing and references
+  - output means that downstream already has all scoping handled
+  - see the video
+
+  - multiscope (scopes)
+    - group of scopes, each of which exists only at a specific phase,
+      and each in a distinct phase. this infinite group of scopes is realized on demand.
+    - used to represent the inside of a module, where bindings in different phases
+      are distinguished by the different scopes within the module's multi scope
+    - to compute a syntax's set of scopes at a given phase,
+      the phase specific representative of the multiscope is combined with the phase-indpendent scopes
+      since a multiscope corresponds to a module, the number of multiscopes in a syntax should be small
+
+- binding
+  - a binding from syntax to a value
+  - a binding can be
+    - module binding
+      - (module phase sym nominal-module nominal-phase nominal-sym nominal-require-phase)
+      - still trying to figure these out
+    - local binding
+      - (key), which is looked up in a separate environment
+        - so that expanded programs can't depend on compile-time bindings
+
+  - add-local-binding id phase
+    - generate a new key for the binding
+    - add a new (local-binding key) to the given phase[id.syntax-e]
+      - return the key
+
+  - free-identifier=? a b phase
+    - resolve both stx against the given phase
+    - if both module bindings
+      - eq if same sym, phase and module
+    - if both local bindings
+      - eq if same key
+    - otherwise
+      ; i think this is the case where it's a runtime binding, but I'm not sure
+      - eq if both couldn't be resolved and the symbol is the same
+
+  - expansion time environment
+    - maps keys to
+      - compile-time value
+        - transformers (host-level procedures)
+        - primitive forms (lambda, let, etc.)
+          - anything that's not in this list would need to come from a transformer
+      - 'variable token (meaning it's a runtime value)
+      - 'missing token (meaning the key is unbound)
+    
+  - core form is a struct that represents how to expand the source language's core forms
+    - (expander)
+
+  - (binding-lookup b env ns phase id)
+    - if module binding,
+      - try and get as a transformer
+      - if not a transformer, return 'variable, because it's a runtime value
+        - this is an assumption based on the default return of `namespace-get-transformer in the code
+        - because it doesn't makes sense otherwise
+    - if local binding
+      - lookup the key in the env
+        - missing is an error "id used out of context"
+    - otherwise is an error "unknown binding for lookup"
+
+  - namespace
+    - scope ; for top level bindings
+    - phases ; phase-level -> definitions
+    - decls  ; resolved-module-name -> module
+    - subdecls ; resolved-module-name -> module
+    - instances ; (cons resolved-module-name phase) -> namespace
+
+  - definitions
+    - variables ; sym -> val
+    - transformers ; sym -> val
+    - instantiated?
+
+  - module
+    - name
+    - requires ; phase -> list of resolved module names
+    - provides  ; phase-level -> sym -> binding
+    - min-phase-level
+    - max-phase-level
+    - instantiate ; namespace phase phase-level ->
+
+    - current-namespace is a parameter (dynamic scoping with `parameterize)
