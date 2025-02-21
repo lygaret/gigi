@@ -545,3 +545,14 @@ going through the =demi= branch
       - unless variable? t
         - error "cannot assign to syntax"
       - rebuild `(set! ,id ,(expand rhs ctx))
+
+*** <2025-02-21 Fri>
+
+The big piece of understanding is that scopeset+scopes let the lexical stack
+of scopes become a graph, not a tree; because of the way that macros can move
+things around, we have to figure out the scopes _up front_ and tie them to syntax,
+so that when syntax moves, the scopes do too.
+
+See the tests in ~gigi/expander/scopes+bindings.test.scm~, but it's making sense there.
+
+Next up, filling out syntax, so we can build up syntax trees with scopes attached
