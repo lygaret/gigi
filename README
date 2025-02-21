@@ -54,9 +54,7 @@ See [[./COPYING]] for details.
 - =libuv= is licensed under the [[https://github.com/libuv/libuv/blob/v1.x/LICENSE][MIT License]]
 - =whippet= is licensed under the [[https://github.com/wingo/whippet][MIT License]]
 
-** Devlog
-
-*** Reading
+** Reading
 
 I have read prose, read code, and re-read prose from all over, and the following people and
 projects stand out. They have all have my deepest and most sincere gratitude for writing,
@@ -179,26 +177,41 @@ Also very interesting, but not yet categorized.
   - [[https://stackoverflow.com/questions/2770889/how-can-i-examine-the-stack-frame-with-gdb][How can I examine the stack frame with GDB? - Stack Overflow]]
   - [[https://kagi.com/search?q=fast+bytecode+number+representations][fast bytecode number representations - Kagi Search]]
 
-*** <2025-02-16 Sun>
+** Devlog
+*** <2025-02-21 Fri>
 
-rough outline of a plan
+The big piece of understanding is that scopeset+scopes let the lexical stack
+of scopes become a graph, not a tree; because of the way that macros can move
+things around, we have to figure out the scopes _up front_ and tie them to syntax,
+so that when syntax moves, the scopes do too.
 
-- compiler
-  - reads a file into s-expr
-  - s-expr -> module graph
-    - imports/exports
-    - local definitions
-      - s-expr
-      - bytecode
-    macro expansion phasing comes into play here, not sure how yet
-  - local definitions compiled to bytecode
-    - macro expansion
-    - cps transform
-    - optimizations
-      - beta reduction
-      - constants and simple math
-      - others ???
-    - ??? -> bytecode
+See the tests in ~gigi/expander/scopes+bindings.test.scm~, but it's making sense there.
+
+Next up,
+
+- filling out syntax, so we can build up syntax trees with scopes attached
+
+- there's an ambiguity case in mflatt's version that I can't seem to figure out how to
+  trigger; since I'm being more explicit in storing bindings in a hash table, it may not be
+  necessary, but it's also possible I'm missing something.
+
+  - his ambiguity check is that the chosen scope in ~binding-resolve~ is a subset of all possibilities,
+    but I _think_ that's already guaranteed by the subset check in ~binding-resolve*~
+    - something to figure out, either way
+  
+- adding a payload to bindings
+  - when we're actually doing syntax expansion, we'll want to be able to record things about the bindings;
+    - module level binding?
+      - phase, import path, etc
+    - local binding?
+      - key for lookup
+    - runtime binding?
+
+  - but I don't want to record this stuff directly on the binding, because that's gross
+    - so either bindings should have a payload, which can be arbitrary
+      - which then means that bindings are still a list
+    - or there's a binding to ~syntax-binding~ table around somewhere
+    - or there's a syntax-binding that is a binding+payload somehow
 
 *** <2025-02-17 Mon>
 
@@ -546,13 +559,23 @@ going through the =demi= branch
         - error "cannot assign to syntax"
       - rebuild `(set! ,id ,(expand rhs ctx))
 
-*** <2025-02-21 Fri>
+*** <2025-02-16 Sun>
 
-The big piece of understanding is that scopeset+scopes let the lexical stack
-of scopes become a graph, not a tree; because of the way that macros can move
-things around, we have to figure out the scopes _up front_ and tie them to syntax,
-so that when syntax moves, the scopes do too.
+rough outline of a plan
 
-See the tests in ~gigi/expander/scopes+bindings.test.scm~, but it's making sense there.
-
-Next up, filling out syntax, so we can build up syntax trees with scopes attached
+- compiler
+  - reads a file into s-expr
+  - s-expr -> module graph
+    - imports/exports
+    - local definitions
+      - s-expr
+      - bytecode
+    macro expansion phasing comes into play here, not sure how yet
+  - local definitions compiled to bytecode
+    - macro expansion
+    - cps transform
+    - optimizations
+      - beta reduction
+      - constants and simple math
+      - others ???
+    - ??? -> bytecode
