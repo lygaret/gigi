@@ -178,7 +178,70 @@ Also very interesting, but not yet categorized.
   - [[https://kagi.com/search?q=fast+bytecode+number+representations][fast bytecode number representations - Kagi Search]]
 
 ** Devlog
-*** <2025-02-21 Fri>
+*** <2025-02-22 Sat>
+
+Getting further; the expander can, you know, expand. Not to anything useful, but it's getting there.
+
+#+begin_src scheme
+  (import (scheme base))
+  (import (scheme write))
+  (import (gigi core))
+
+  (import (gigi expander context))
+  (import (gigi expander core))
+  (import (gigi expander scopes+binding-tables))
+  (import (gigi expander syntax))
+  (import (gigi expander))
+
+  (define t (datum->syntax
+             '((lambda (a b)
+                 (if (< (- a b) 0)
+                     'bigger
+                     (do-something-else a)))
+               10 15)
+             scopeset/core))
+
+  (datum->syntax (syntax->datum (expand t)))
+
+  ; expands to
+
+  '((%lambda (a b)
+             (%apply (%free if)
+                     (%apply (%free <) (%apply (%free -) (%free a) (%free b)) 0)
+                     (%apply (%free quote) (%free bigger))
+                     (%apply (%free do-something-else) (%free a))))
+    10 15)
+#+end_src
+
+Obviously this is incorrect, but the pieces are starting to come together. The ~%free~ ~a~ and ~b~ are
+because I'm not currently adding the lambda body scope to the actual syntax.
+
+I changed ~syntax-map~ to take an additional context parameter, which lets ~expand~ just become
+~syntax-map~ over ~expand-syntax~ and because the recursion continuation is passed along, we don't
+have to let the core-bindings and expander modules see each other.
+
+I don't think that matters very much, but it does help play out some thoughts I'm having about
+dynamic scope, effect handlers and how they play into object capabilities.
+
+I need to deep dive on this, but in the very short term:
+
+#+begin_src scheme
+  (effect custom/logger (proto/logger/default)
+    (on proto/logger/write (level message)
+      (some custom logging)))
+
+  (with-handlers ((proto/logger custom/logger))
+    (proto/logger debug "oh no!"))
+#+end_src
+
+I've rewritten that a bunch of times, which makes me realize that I don't know
+what I'm actually looking for.
+
+That's a problem to come back to once I have the expander, because once that's
+done I'll need to decide on ISA and how the VM actually runs, which I want to
+specialize to the multi-effect/object-capabilities/async model I've got in vague mind.
+
+*** <2025-02-21 Fri> [1/3]
 
 The big piece of understanding is that scopeset+scopes let the lexical stack
 of scopes become a graph, not a tree; because of the way that macros can move
@@ -189,9 +252,12 @@ See the tests in ~gigi/expander/scopes+bindings.test.scm~, but it's making sense
 
 Next up,
 
-- filling out syntax, so we can build up syntax trees with scopes attached
-
-- there's an ambiguity case in mflatt's version that I can't seem to figure out how to
+- [ ] filling out syntax, so we can build up syntax trees with scopes attached
+  - scopeset management for syntax
+    - add scope recursively
+    - xor scope recursively
+ 
+- [ ] there's an ambiguity case in mflatt's version that I can't seem to figure out how to
   trigger; since I'm being more explicit in storing bindings in a hash table, it may not be
   necessary, but it's also possible I'm missing something.
 
@@ -199,7 +265,7 @@ Next up,
     but I _think_ that's already guaranteed by the subset check in ~binding-resolve*~
     - something to figure out, either way
   
-- adding a payload to bindings
+- [X] adding a payload to bindings
   - when we're actually doing syntax expansion, we'll want to be able to record things about the bindings;
     - module level binding?
       - phase, import path, etc
@@ -212,6 +278,43 @@ Next up,
       - which then means that bindings are still a list
     - or there's a binding to ~syntax-binding~ table around somewhere
     - or there's a syntax-binding that is a binding+payload somehow
+
+  - actually, I got it wrong
+    - a binding-table is what's associated with scopesets
+    - a _binding_ is what's _in_ that table, which can come from somewhere else
+
+- at this point, we have syntax with bindings that can correctly reference compile-time value
+
+  - expand form
+    - context =
+      - environment with core forms
+      - phase 0
+    - expand-with-context form context
+
+  - expand-with-context
+    - immediate values
+      - just expand
+      - quote-syntax needs to happen
+    - identifiers
+      - lookup in bindings, free-variable if not found
+      - runtime-value?, return identifier
+      - other?
+    - pairs (applications)
+      - if car is identifier
+        - lookup in bindings, free-variable if not found
+        - procedure?, (expand-with-context (macro-invoke ...
+        - runtime-value? return application form
+        - other?
+      - otherwise, recurse into forms
+
+  - what's missing from this?
+    - expansion-time environment (can just be an alist)
+    - typed bindings
+      - core-forms
+        - core primitives from mflatt's version are really just core forms that use identity as a transformer
+      - local binding
+        - key -> binding
+        - [ ] this has something to do with making sure that compile-time values don't get relied on in 
 
 *** <2025-02-17 Mon>
 

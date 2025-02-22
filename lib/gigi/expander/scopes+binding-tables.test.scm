@@ -8,7 +8,7 @@
 (import (chibi test))
 
 (import (gigi core))
-(import (gigi expander scopes+bindings))
+(import (gigi expander scopes+binding-tables))
 
 ;; Basic scope creation and comparison
 (test-group "scopes"
@@ -63,68 +63,52 @@
 
   (define scope/outer (make-scope))
   (define ss/outer (scopeset-add scope/outer empty-scopeset))
-  (define binding/outer (make-binding))
 
   (define scope/middle (make-scope))
   (define ss/middle (scopeset-add scope/middle ss/outer))
-  (define binding/middle (make-binding))
 
   (define scope/inner (make-scope))
   (define ss/inner (scopeset-add scope/inner ss/middle))
-  (define binding/inner (make-binding))
 
   (test 1 (scopeset-size ss/outer))
   (test 2 (scopeset-size ss/middle))
   (test 3 (scopeset-size ss/inner))
 
-  (binding-table-insert! t 'a ss/outer binding/outer)
-  (binding-table-insert! t 'a ss/middle binding/middle)
-  (binding-table-insert! t 'b ss/inner binding/inner)
+  (binding-table-insert! t 'a ss/outer 'outer)
+  (binding-table-insert! t 'a ss/middle 'middle)
+  (binding-table-insert! t 'b ss/inner 'inner)
 
   ;; Test basic lookup
-  (test "outer scope resolves known"
-        binding/outer
-        (binding-table-resolve t 'a ss/outer))
+  (test "outer scope resolves known" 'outer (binding-table-resolve t 'a ss/outer))
 
-  (test "outer scope fails on unknown"
-        #f
-        (binding-table-resolve t 'b ss/outer))
+  (test "outer scope fails on unknown" #f (binding-table-resolve t 'b ss/outer))
 
-  (test "middle scope resolves intermediate"
-        binding/middle
-        (binding-table-resolve t 'a ss/middle))
+  (test "middle scope resolves intermediate" 'middle (binding-table-resolve t 'a ss/middle))
 
-  (test "middle scope fails on unknown"
-        #f
-        (binding-table-resolve t 'b ss/middle))
+  (test "middle scope fails on unknown" #f (binding-table-resolve t 'b ss/middle))
 
-  (test "inner scope resolves upwards"
-        binding/middle
-        (binding-table-resolve t 'a ss/inner))
+  (test "inner scope resolves upwards" 'middle (binding-table-resolve t 'a ss/inner))
 
-  (test "inner scope resolves local"
-        binding/inner
-        (binding-table-resolve t 'b ss/inner))
+  (test "inner scope resolves local" 'inner (binding-table-resolve t 'b ss/inner))
 
   ;; Test resolution with gaps
   ;; A scope between outer and middle should see outer binding
   (let* ((scope/gap (make-scope))
          (ss/gap    (scopeset-add scope/gap ss/outer)))
     (let ((gap-res (binding-table-resolve t 'a ss/gap)))
-      (test "gap resolution falls back to outer" binding/outer gap-res))
+      (test "gap resolution falls back to outer" 'outer gap-res))
   
   ;; test multiple bindings at same level
   (let* ((scope/sibling   (make-scope))
-         (ss/sibling      (scopeset-add scope/sibling ss/outer))
-         (binding/sibling (make-binding)))
-    (binding-table-insert! t 'y ss/sibling binding/sibling)
-    (binding-table-insert! t 'y ss/outer binding/outer)
+         (ss/sibling      (scopeset-add scope/sibling ss/outer)))
+    (binding-table-insert! t 'y ss/sibling 'sibling)
+    (binding-table-insert! t 'y ss/outer 'outer)
     
     ;; Sibling scope should see its own binding for y
-    (test "sibling scope own binding" binding/sibling (binding-table-resolve t 'y ss/sibling))
+    (test "sibling scope own binding" 'sibling (binding-table-resolve t 'y ss/sibling))
     
     ;; But outer scope should only see outer binding
-    (test "outer scope unaffected by sibling" binding/outer (binding-table-resolve t 'y ss/outer)))))
+    (test "outer scope unaffected by sibling" 'outer (binding-table-resolve t 'y ss/outer)))))
 
 ;; Test edge cases
 (test-group "edge-cases"
@@ -133,7 +117,6 @@
     
     ;; Test resolution with empty scopeset
     (let* ((scope1   (make-scope))
-           (ss1      (scopeset-add scope1 empty-scopeset))
-           (binding1 (make-binding)))
-      (binding-table-insert! t 'x ss1 binding1)
+           (ss1      (scopeset-add scope1 empty-scopeset)))
+      (binding-table-insert! t 'x ss1 'binding)
       (test "resolve with empty scopeset" #f (binding-table-resolve t 'x empty-scopeset)))))

@@ -1,4 +1,4 @@
-(define-library (gigi expander scopes+bindings)
+(define-library (gigi expander scopes+binding-tables)
 
   (import (except (scheme base) define))
   (import (scheme write))
@@ -12,6 +12,7 @@
   (import (gigi core))
 
   ;; data structures for managaing scopes and bindings within them
+  ;; bindings themselves aren't defined here, just the scopeset aware table
   ;;
   ;; expample:
   ;;
@@ -41,10 +42,6 @@
           scopeset->list
           scopeset-memq
           scopeset-size
-
-          binding
-          make-binding
-          binding?
 
           binding-table
           make-binding-table
@@ -112,11 +109,6 @@
         (memq scopes sc)))
 
     ;; ---
-
-    (define-record-type binding
-      ;; opaque token for identity
-      (make-binding)
-      binding?)
 
     (define-record-type binding-table
       ;; sym -> ((scopeset . binding) ...)

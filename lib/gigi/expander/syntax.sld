@@ -10,7 +10,7 @@
   (import (srfi 227)) ; optional arguments
 
   (import (gigi core))
-  (import (gigi expander scopes+bindings))
+  (import (gigi expander scopes+binding-tables))
 
   (export syntax
           make-syntax
@@ -19,7 +19,16 @@
           syntax-scopes
           syntax-srcloc
 
+          syntax-map
+          syntax-map-scopeset
+          syntax-map-srcloc
+
+          syntax-immediate?
+          syntax-identifier?
+          syntax-id-application?
+
           syntax->datum
+          syntax->printable
           datum->syntax)
 
   (begin
@@ -30,12 +39,65 @@
       (scopes syntax-scopes)
       (srcloc syntax-srcloc))
 
-    (define (syntax->datum s)
-      (let loop ((expr (syntax-expr s)))
+    (define (syntax-map op ctx syn)
+      (let ((syntax-map (curry syntax-map op)))
         (cond
-         ((syntax? expr) (loop (syntax-expr expr)))
-         ((list? expr)   (map loop expr))
-         (else expr))))
+         ((syntax? syn) (op ctx syn syntax-map))
+         ((list? syn)   (map (curry syntax-map ctx) syn))
+         ((pair? syn)   (cons (syntax-map ctx (car syn))
+                              (syntax-map ctx (cdr syn))))
+         (else syn))))
+
+    (define (syntax-map-scopeset op syn)
+      (syntax-map
+       (lambda (ctx syn recur)
+         (make-syntax (recur ctx (syntax-expr syn))
+                      (op (syntax-scopes syn))
+                      (syntax-srcloc syn)))
+       #f syn))
+
+    (define (syntax-map-srcloc op syn)
+      (syntax-map
+       (lambda (ctx syn recur)
+         (make-syntax (recur ctx (syntax-expr syn))
+                      (syntax-scopes syn)
+                      (op (syntax-srcloc syn))))
+       #f syn))
+
+    ;; ---
+
+    (define (syntax-immediate? syn)
+      (and (syntax? syn)
+           (let ((expr (syntax-expr syn)))
+             (cond
+              ((number? expr) #t)
+              ((string? expr) #t)
+              ((null? expr)   #t)
+              ((pair? expr)   (eq? (car expr) 'quote))
+              ((list? expr)   (eq? (car expr) 'quote))
+              (else #f)))))
+
+    (define (syntax-identifier? syn)
+      (and (syntax? syn)
+           (symbol? (syntax-expr syn))))
+
+    (define (syntax-id-application? syn)
+      (and (syntax? syn)
+           (list? (syntax-expr syn))
+           (syntax-identifier? (car (syntax-expr syn)))))
+
+    ;; ---
+
+    (define (syntax->datum syn)
+      (syntax-map (lambda (ctx syn recur) (recur ctx (syntax-expr syn))) #f syn))
+
+    (define (syntax->printable syn)
+      (syntax-map (lambda (ctx syn recur)
+                    (cond
+                     ((syntax-immediate? syn)  (syntax-expr syn))
+                     ((syntax-identifier? syn) (list (syntax-expr syn) (scopeset->list (syntax-scopes syn))))
+                     (else                     (recur ctx (syntax-expr syn)))))
+                  #f syn))
 
     (define datum->syntax
       (opt-lambda (v (scopeset empty-scopeset) (srcloc #f))
@@ -45,5 +107,10 @@
         (wrap
          (cond
           ((list? v) (map (curryr datum->syntax scopeset srcloc) v))
-          ((pair? v) (map (curryr datum->syntax scopeset srcloc) v))
-          (else v)))))))
+          ((pair? v) (cons (datum->syntax (car v) scopeset srcloc)
+                           (datum->syntax (cdr v) scopeset srcloc)))
+          (else v)))))
+
+    ;; ---
+
+    ))
