@@ -24,7 +24,6 @@
       (syntax-map expand-syntax (build-core-context) syn))
 
     (define (expand-syntax ctx syn recur)
-      (display "expanding: ")(display syn)(newline)
       (cond
        ((syntax-immediate? syn)      (syntax-expr syn))
        ((syntax-identifier? syn)     (expand-identifier ctx syn recur))
@@ -36,7 +35,7 @@
         (cond
          ((not binding)        `(%free ,(syntax-expr syn)))
          ((procedure? binding) (binding syn ctx recur))
-         (else                 (error "illegal use of syntax" syn)))))
+         (else                 `(%bound ,(syntax-expr syn) ,binding)))))
 
     (define (expand-id-application ctx syn recur)
       (let* ((syn-id   (car (syntax-expr syn)))

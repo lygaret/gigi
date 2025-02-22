@@ -58,15 +58,20 @@
             (let* ((expr (syntax-expr syn))
                    (args (car (cdr expr)))
                    (body (car (cdr (cdr expr))))
+
                    (scope/body    (make-scope))
                    (scopeset/body (scopeset-add scope/body (syntax-scopes syn)))
-                   (ctx/body      (make-expansion-context ctx)))
+                   (ctx/body      (make-expansion-context ctx))
+                   (body-rescoped (syntax-add-scope body scope/body)))
+
+              ;; add bindings for the arguments in the new body scope
               (let loop ((args (syntax->datum args)))
                 (unless (null? args)
                   (add-local-binding! ctx/body scopeset/body (car args))
                   (loop (cdr args))))
-              (display "bindings: ")(display (context-bindings ctx/body))(display (context-environ ctx/body))(newline)
-              `(%lambda ,args ,(recur ctx/body body)))))
+
+              ;; and then recur an the reformed body
+              `(%lambda ,args ,(recur ctx/body body-rescoped)))))
 
         (add-core-form! ctx 'define
           (lambda (ctx syn recur)

@@ -32,7 +32,7 @@
       (environ  context-environ set-context-environ!))
 
     (define (make-expansion-context parent)
-      (let* ((bindings (make-binding-table))
+      (let* ((bindings (or (and parent (context-bindings parent)) (make-binding-table)))
              (environ  (or (and parent (context-environ parent)) '())))
         (make-expansion-context-priv bindings environ)))
 

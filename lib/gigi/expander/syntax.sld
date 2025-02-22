@@ -23,13 +23,17 @@
           syntax-map-scopeset
           syntax-map-srcloc
 
+          syntax-add-scope
+          syntax-remove-scope
+          syntax-toggle-scope
+
           syntax-immediate?
           syntax-identifier?
           syntax-id-application?
 
+          datum->syntax
           syntax->datum
-          syntax->printable
-          datum->syntax)
+          syntax->printable)
 
   (begin
     (define-record-type syntax
@@ -63,6 +67,17 @@
                       (syntax-scopes syn)
                       (op (syntax-srcloc syn))))
        #f syn))
+
+    ;; ---
+
+    (define (syntax-add-scope syn sc)
+      (syntax-map-scopeset (curry scopeset-add sc) syn))
+
+    (define (syntax-remove-scope syn sc)
+      (syntax-map-scopeset (curry scopeset-remove sc) syn))
+
+    (define (syntax-toggle-scope syn sc)
+      (syntax-map-scopeset (curry scopeset-toggle sc) syn))
 
     ;; ---
 
