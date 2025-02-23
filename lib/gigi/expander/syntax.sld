@@ -30,6 +30,7 @@
           syntax-immediate?
           syntax-identifier?
           syntax-id-application?
+          syntax-application?
 
           datum->syntax
           syntax->datum
@@ -100,6 +101,9 @@
       (and (syntax? syn)
            (list? (syntax-expr syn))
            (syntax-identifier? (car (syntax-expr syn)))))
+
+    (define (syntax-application? syn)
+      (and (syntax? syn) (list? (syntax-expr syn))))
 
     ;; ---
 

@@ -23,8 +23,15 @@
     (define scopeset/core (scopeset-add scope/core empty-scopeset))
 
     (define-record-type core-token
-      (make-core-token)
-      core-token?)
+      (make-core-token-priv counter)
+      core-token?
+      (counter core-token-counter))
+
+    (define make-core-token
+      (let ((counter 0))
+        (lambda ()
+          (set! counter (+ 1 counter))
+          (make-core-token-priv counter))))
 
     (define (add-core-form! ctx sym transformer)
       (let ((key (make-core-token)))

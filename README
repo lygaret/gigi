@@ -178,6 +178,45 @@ Also very interesting, but not yet categorized.
   - [[https://kagi.com/search?q=fast+bytecode+number+representations][fast bytecode number representations - Kagi Search]]
 
 ** Devlog
+*** <2025-02-23 Sun>
+
+Got some scope modifiers for syntax, and now we get correct scoping downstream
+
+#+begin_src scheme
+  (define t (datum->syntax
+             '((lambda (a b)
+                 (if (< (- a b) 0)
+                     'bigger
+                     ((lambda (b c)
+                        (b a c)) b)))
+               10 a)
+             scopeset/core))
+
+  (display (syntax->datum (expand t))))
+
+  ;; expands to 
+  '(%apply (%lambda (a b)
+                    (%if (%apply (%free <)
+                                 (%apply (%free -)
+                                         (%bound a {core-token #75 6} variable)
+                                         (%bound b {core-token #75 7} variable))
+                                 0)
+                         (quote bigger)
+                         (%apply (%lambda (b c)
+                                          (%apply (%bound b {core-token #75 8} variable)
+                                                  (%bound a {core-token #75 6} variable)
+                                                  (%bound c {core-token #75 9} variable)))
+                                 (%bound b {core-token #75 7} variable))))
+           10
+           (%free a))
+#+end_src
+
+note the bounds; we also have the specific binding, which I think we could use for
+access in the heap, but I haven't thought of that too much yet.
+
+importantly, not that in the second lambda the ~%bound b~ is core-token 8, wherease it's represented
+by core-token 7 elsewhere. scoped binding, baby!
+
 *** <2025-02-22 Sat>
 
 Getting further; the expander can, you know, expand. Not to anything useful, but it's getting there.

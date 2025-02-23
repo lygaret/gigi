@@ -43,7 +43,7 @@
              (ss      (syntax-scopes syn))
              (binding (binding-table-resolve bt sym ss))
              (entry   (and binding (assq binding (context-environ ctx)))))
-        (and entry (cdr entry))))
+        entry))
 
     (define (context-env-insert! ctx key value)
       (set-context-environ! ctx (alist-cons key value (context-environ ctx))))))
