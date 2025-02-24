@@ -39,6 +39,15 @@
         (context-env-insert! ctx key transformer)
         key))
 
+    (define (add-core-prims! ctx syms)
+      (let loop ((syms syms))
+        (unless (null? syms)
+          (let ((key (make-core-token))
+                (sym (car syms)))
+            (binding-table-insert! (context-bindings ctx) sym scopeset/core key)
+            (context-env-insert! ctx key 'prim)
+            (loop (cdr syms))))))
+
     (define (add-local-binding! ctx ss sym)
       (let ((key (make-core-token)))
         (binding-table-insert! (context-bindings ctx) sym ss key)
@@ -128,6 +137,12 @@
 
     (define (build-core-context)
       (let ((ctx (make-expansion-context #f)))
+
+        ;; prims get found in context and returned as a special case
+        ;; the underlying compiler will handle them when we get there
+
+        (add-core-prims! ctx '(+ - / * < =))
+        (add-core-prims! ctx '(cons car cdr null? pair?))
 
         ;; remember this is just expansion
         ;; we need to handle all core forms, but most of them can just recur on their args
