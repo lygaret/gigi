@@ -51,12 +51,15 @@
 
   (begin
     (define-record-type scope
-      (make-scope-priv bindings)
+      (make-scope-priv id)
       scope?
-      (bindings scope-bindings))
+      (id scope-id))
 
-    (define (make-scope)
-      (make-scope-priv (make-hash-table (make-eq-comparator))))
+    (define make-scope
+      (let ((counter 0))
+        (lambda ()
+          (set! counter (+ 1 counter))
+          (make-scope-priv counter))))
 
     ;; ---
 
@@ -126,7 +129,7 @@
 
     (define (binding-table-resolve* bt sym ss)
       ;; find all possible matches
-      ;; ie, entries where the stored scopeset is a subset of the request
+      ;; ie, entries where the store scope is a subset of the request
       (let* ((table    (binding-table-bindings bt))
              (by-name  (hash-table-ref/default table sym '()))
              (entry<=? (lambda (entry) (scopeset-subset? (car entry) ss))))

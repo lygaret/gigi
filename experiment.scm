@@ -22,21 +22,30 @@
                      'bigger
                      ((lambda (b c)
                         (b a c)) b)))
-               10 a)
-             scopeset/core))
-  
+               10 a)))
   (display (syntax->datum (expand t))))
 
-(%apply (%lambda (a b)
-                 (%if (%apply (%free <)
-                              (%apply (%free -)
-                                      (%bound a {core-token #75 6} variable)
-                                      (%bound b {core-token #75 7} variable))
-                              0)
-                      (quote bigger)
-                      (%apply (%lambda (b c)
-                                       (%apply (%bound b {core-token #75 8} variable)
-                                               (%bound a {core-token #75 6} variable)
-                                               (%bound c {core-token #75 9} variable)))
-                              (%bound b {core-token #75 7} variable))))
-        10 (%free a))
+#;
+'((lambda (a b)
+    (if ((%free <) ((%free -)
+                    (%bound a {core-token #75 14} variable)
+                    (%bound b {core-token #75 15} variable))
+         0)
+        (quote bigger)
+        ((lambda (b c)
+           ((%bound b {core-token #75 16} variable)
+            (%bound a {core-token #75 14} variable)
+            (%bound c {core-token #75 17} variable)))
+         (%bound b {core-token #75 15} variable))))
+  10 (%free a))
+
+(begin
+  (define s (datum->syntax
+             '(letrec ((fib (lambda (n)
+                              (cond
+                               ((= n 0) 1)
+                               ((= n 1) 1)
+                               (else    (+ (f (- n 1)) (f (- n 2))))))))
+                (fib 7))))
+
+  (display (syntax->datum (expand s))))

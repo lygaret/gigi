@@ -21,7 +21,9 @@
 
   (begin
     (define (expand syn)
-      (syntax-map expand-syntax (build-core-context) syn))
+      (syntax-map expand-syntax
+                  (build-core-context)
+                  (syntax-add-scope syn scope/core)))
 
     (define (expand-syntax ctx syn recur)
       (cond
@@ -34,7 +36,7 @@
     (define (expand-application ctx syn recur)
       (let* ((syn-id   (car (syntax-expr syn)))
              (syn-args (cdr (syntax-expr syn))))
-        `(%apply ,(recur ctx syn-id) ,@(recur ctx syn-args))))
+        `(,(recur ctx syn-id) ,@(recur ctx syn-args))))
 
     (define (expand-identifier ctx syn recur)
       (let* ((entry   (context-resolve ctx syn))
@@ -52,6 +54,6 @@
              (value    (and entry (car entry)))
              (binding  (and entry (cdr entry))))
         (cond
-         ((not binding)        `(%apply ,(recur ctx syn-id) ,@(recur ctx syn-args)))
+         ((not binding)        `(,(recur ctx syn-id) ,@(recur ctx syn-args)))
          ((procedure? binding) (binding ctx syn recur))
-         (else                 `(%apply (%bound ,(syntax-expr syn-id) ,value ,binding) ,@(recur ctx syn-args))))))))
+         (else                 `((%bound ,(syntax-expr syn-id) ,value ,binding) ,@(recur ctx syn-args))))))))
