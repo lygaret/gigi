@@ -58,14 +58,15 @@
              (ctx/body      (make-expansion-context ctx))
              (body-rescoped (syntax-add-scope body scope/body)))
 
-        ;; add bindings for the arguments in the new body scope
-        (let loop ((args (syntax->datum args)))
-          (unless (null? args)
-            (add-local-binding! ctx/body scopeset/body (car args))
-            (loop (cdr args))))
+        ;; add bindings for the arguments in the new scope
+        (let ((args (let loop ((args (syntax-expr args)))
+                      (if (null? args) '()
+                          (let* ((name (syntax-expr (car args)))
+                                 (key  (add-local-binding! ctx/body scopeset/body name)))
+                            (cons `(%bind ,name ,key) (loop (cdr args))))))))
 
-        ;; and then recur an the reformed body
-        `(,op ,args ,(recur ctx/body body-rescoped))))
+          ;; and then recur an the reformed body
+          `(,op ,args ,(recur ctx/body body-rescoped)))))
 
     (define (core-expand/let ctx syn recur)
       (let* ((expr (syntax-expr syn))
@@ -79,13 +80,16 @@
              (body-rescoped (syntax-add-scope body scope/body)))
 
         ;; add bindings for the arguments in the new scope
-        (let ((vars (let loop ((vars (syntax->datum vars)))
-                      (unless (null? vars)
-                        (let* ((entry (car vars))
-                               (name  (car entry))
-                               (defn  (car (cdr entry))))
-                          (add-local-binding! ctx/body scopeset/body name)
-                          (cons (recur ctx defn) (loop (cdr vars))))))))
+        (let ((vars (let loop ((vars (syntax-expr vars)))
+                      (if (null? vars)
+                          '()
+                          (let* ((expr (syntax-expr (car vars)))
+                                 (name (car expr))
+                                 (defn (car (cdr expr)))
+                                 (key  (add-local-binding! ctx/body scopeset/body (syntax-expr name)))
+                                 (defn (syntax-add-scope defn scope/body))
+                                 (defn (recur ctx/body defn)))
+                            (cons `((%bind ,name ,key) ,defn) (loop (cdr vars))))))))
 
           ;; todo expanded everything
           `(,op ,vars ,(recur ctx/body body-rescoped)))))

@@ -26,26 +26,42 @@
   (display (syntax->datum (expand t))))
 
 #;
-'((lambda (a b)
-    (if ((%free <) ((%free -)
-                    (%bound a {core-token #75 14} variable)
-                    (%bound b {core-token #75 15} variable))
-         0)
-        (quote bigger)
-        ((lambda (b c)
-           ((%bound b {core-token #75 16} variable)
-            (%bound a {core-token #75 14} variable)
-            (%bound c {core-token #75 17} variable)))
-         (%bound b {core-token #75 15} variable))))
-  10 (%free a))
+'((lambda ((%bind a {core-token #75 14}) (%bind b {core-token #75 15}))
+   (if ((%free <)
+        ((%free -)
+         (%bound a {core-token #75 14} variable)
+         (%bound b {core-token #75 15} variable))
+        0)
+       (quote bigger)
+       ((lambda ((%bind b {core-token #75 16}) (%bind c {core-token #75 17}))
+          ((%bound b {core-token #75 16} variable)
+           (%bound a {core-token #75 14} variable)
+           (%bound c {core-token #75 17} variable)))
+        (%bound b {core-token #75 15} variable))))
+ 10 (%free a))
 
 (begin
   (define s (datum->syntax
              '(letrec ((fib (lambda (n)
-                              (cond
-                               ((= n 0) 1)
-                               ((= n 1) 1)
-                               (else    (+ (f (- n 1)) (f (- n 2))))))))
+                              (if (= n 0)
+                                  1
+                                  (if (= n 1)
+                                      1
+                                      (+ (fib (- n 1)) (fib (- n 2))))))))
                 (fib 7))))
 
   (display (syntax->datum (expand s))))
+
+#;
+'(letrec (((%bind fib {core-token #75 31})
+          (lambda ((%bind n {core-token #75 32}))
+            (if ((%free =) (%bound n {core-token #75 32} variable) 0)
+                1
+                (if ((%free =) (%bound n {core-token #75 32} variable) 1)
+                    1
+                    ((%free +)
+                     ((%bound fib {core-token #75 31} variable)
+                      ((%free -) (%bound n {core-token #75 32} variable) 1))
+                     ((%bound fib {core-token #75 31} variable)
+                      ((%free -) (%bound n {core-token #75 32} variable) 2))))))))
+  ((%bound fib {core-token #75 31} variable) 7))
