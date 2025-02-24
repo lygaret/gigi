@@ -178,6 +178,11 @@ Also very interesting, but not yet categorized.
   - [[https://kagi.com/search?q=fast+bytecode+number+representations][fast bytecode number representations - Kagi Search]]
 
 ** Devlog
+*** <2025-02-24 Mon>
+
+Simplish updates; we're pushing things around successfully, syntax wise.
+I think next up I need to write some tests, the ~experiments.scm~ way of seeing if it works is getting annoying.
+
 *** <2025-02-23 Sun>
 
 Got some scope modifiers for syntax, and now we get correct scoping downstream
