@@ -15,6 +15,7 @@
   (import (gigi expander syntax))
 
   (export build-core-context
+          add-local-binding!
           scope/core
           scopeset/core)
 
@@ -141,7 +142,7 @@
         ;; prims get found in context and returned as a special case
         ;; the underlying compiler will handle them when we get there
 
-        (add-core-prims! ctx '(+ - / * < =))
+        (add-core-prims! ctx '(+ - / * < = >))
         (add-core-prims! ctx '(cons car cdr null? pair?))
 
         ;; remember this is just expansion
