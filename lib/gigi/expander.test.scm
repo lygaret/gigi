@@ -16,20 +16,20 @@
 
 ;; Test utilities
 (define (wildcard-equal? a b)
+  (define (wildcard-sym? sym)
+    (and (symbol? sym)
+         (let ((name (symbol->string sym)))
+           (and (> (string-length name) 1)
+                (char=? (string-ref name 0) #\_)
+                (char<=? #\0 (string-ref name 1) #\9)))))
+
+  (define (bind-or-check-wildcard name value memo)
+    (let ((extant (hash-table-ref/default memo name #f)))
+      (if extant
+          (equal? value extant)
+          (hash-table-set! memo name value))))
+
   (let wildcard-equal? ((a a) (b b) (memo (make-hash-table eqv?)))
-    (define (wildcard-sym? sym)
-      (and (symbol? sym)
-           (let ((name (symbol->string sym)))
-             (and (> (string-length name) 1)
-                  (char=? (string-ref name 0) #\_)
-                  (char<=? #\0 (string-ref name 1) #\9)))))
-
-    (define (bind-or-check-wildcard a b)
-      (let ((extant (hash-table-ref/default memo a #f)))
-        (if extant
-            (equal? b extant)
-            (hash-table-set! memo a b))))
-
     (if (and (pair? a) (pair? b))
         (and (wildcard-equal? (car a) (car b) memo)
              (wildcard-equal? (cdr a) (cdr b) memo))
@@ -38,8 +38,8 @@
          ((equal? '_  a) #t)
          ((equal? '_  b) #t)
          ;; first _1, _2, etc. sets the value, next tests against it
-         ((wildcard-sym? a) (bind-or-check-wildcard a b))
-         ((wildcard-sym? b) (bind-or-check-wildcard b a))
+         ((wildcard-sym? a) (bind-or-check-wildcard a b memo))
+         ((wildcard-sym? b) (bind-or-check-wildcard b a memo))
          ;; otherwise this isn't special, just use equal?
          (else (equal? a b))))))
 
