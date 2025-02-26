@@ -140,11 +140,16 @@
 
 ;; Test expansion of special forms
 (test-group "special-forms"
-  ;; Test if
   (test-expand '(if (< x 10) 'small 'large)
                '(if ((%bound < _ prim) (%free x) 10) 'small 'large))
+
+  (test-expand '(cond ((eq? x 3) y)
+                      ((eq? x 4) z)
+                      (else q))
+               '(cond (((%bound eq? _ prim) (%free x) 3) (%free y))
+                      (((%bound eq? _ prim) (%free x) 4) (%free z))
+                      (else (%free q))))
   
-  ;; Test and/or
   (test-expand '(and (< x 10) (> x 0))
                '(and ((%bound < _ prim) (%free x) 10) ((%bound > _ prim) (%free x) 0)))
   

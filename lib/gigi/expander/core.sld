@@ -123,6 +123,21 @@
 
     ;; ---
 
+    (define (core-expand/cond ctx syn recur)
+      ;; (cond ((test) body...) ...)
+      (let* ((expr (syntax-expr syn))
+             (op   (car expr))
+             (vars (let loop ((vars (cdr expr)))
+                     (if (null? vars)
+                         '()
+                         (let* ((expr (syntax-expr (car vars)))
+                                (test (car expr))
+                                (body (cdr expr)))
+                           (cons (cons (if (eqv? (syntax-expr test) 'else) test (recur ctx test))
+                                       (recur ctx body))
+                                 (loop (cdr vars))))))))
+        `(,op ,@vars)))
+
     ;; ---
 
     (define (core-expand/generic-recur-args ctx syn recur)
@@ -144,6 +159,7 @@
 
         (add-core-prims! ctx '(+ - / * < = >))
         (add-core-prims! ctx '(cons car cdr null? pair?))
+        (add-core-prims! ctx '(eq? eqv? equal?))
 
         ;; remember this is just expansion
         ;; we need to handle all core forms, but most of them can just recur on their args
@@ -164,6 +180,6 @@
         (add-core-form! ctx 'and          core-expand/generic-recur-args)
         (add-core-form! ctx 'or           core-expand/generic-recur-args)
         (add-core-form! ctx 'if           core-expand/generic-recur-args)
-        (add-core-form! ctx 'cond         core-expand/not-implemented)
+        (add-core-form! ctx 'cond         core-expand/cond)
 
         ctx))))
